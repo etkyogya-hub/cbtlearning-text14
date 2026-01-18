@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<title>CBT Level 8 — Algorithmic Core</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{
+  background:#000;color:#fff;font-family:Arial,sans-serif;
+  display:flex;justify-content:center;align-items:center;height:100vh;
+}
+.app{
+  width:360px;height:720px;border:8px solid #222;border-radius:28px;
+  padding:16px;display:flex;flex-direction:column;justify-content:space-between;
+}
+.hidden{display:none}
+.big{font-size:20px;font-weight:bold;text-align:center}
+.question{font-size:17px;text-align:center;line-height:1.4;margin:16px 0}
+.option{
+  border:1px solid #fff;padding:10px;margin:6px 0;text-align:center;cursor:pointer;
+}
+.option:hover{background:#fff;color:#000}
+.box{border:1px solid #333;padding:10px;font-size:14px;color:#ccc}
+.highlight{color:#00ffd5}
+</style>
+</head>
+<body>
+
+<div class="app">
+
+  <div id="screen-question">
+    <div class="big">CBT Adaptive Engine</div>
+    <div id="questionText" class="question"></div>
+    <div id="options"></div>
+  </div>
+
+  <div id="screen-analysis" class="hidden">
+    <div class="big">ANALISIS</div>
+    <div id="analysisText" class="box"></div>
+  </div>
+
+  <div id="screen-result" class="hidden">
+    <div class="big">PROFIL LOGIKA</div>
+    <div id="profileText" class="box"></div>
+    <div style="margin-top:12px;font-size:14px">
+      Versi lengkap (7 langkah + rational generator) ada di
+      <span class="highlight">BIO</span>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// === CORE GENERATOR ===
+function genSilogisme(){
+  const letters = ["A","B","C","D","X","Y"];
+  const a = letters[Math.floor(Math.random()*letters.length)];
+  let b = letters[Math.floor(Math.random()*letters.length)];
+  let c = letters[Math.floor(Math.random()*letters.length)];
+  if(b===a) b="B";
+  if(c===a || c===b) c="C";
+
+  return {
+    q:`Semua ${a} adalah ${b}. Semua ${b} adalah ${c}. Maka semua ${a} adalah ${c}?`,
+    options:["Ya","Tidak","Belum tentu","Tidak bisa disimpulkan"],
+    correct:0,
+    type:"Silogisme",
+    explain:"Ini silogisme valid: A ⊂ B dan B ⊂ C → A ⊂ C."
+  }
+}
+
+function genConverse(){
+  return {
+    q:"Semua dokter pintar. Andi pintar. Maka Andi dokter?",
+    options:["Ya","Tidak","Belum tentu","Tidak bisa disimpulkan"],
+    correct:3,
+    type:"Converse Error",
+    explain:"Pintar tidak berarti dokter. Ini kesalahan membalik implikasi."
+  }
+}
+
+function genCausal(){
+  return {
+    q:"Jika hujan maka jalan basah. Jalan basah. Maka hujan?",
+    options:["Ya","Tidak","Belum tentu","Tidak bisa disimpulkan"],
+    correct:3,
+    type:"Affirming the Consequent",
+    explain:"Basah bisa disebabkan banyak hal. Ini kesalahan sebab-akibat."
+  }
+}
+
+function generateQuestion(mode){
+  if(mode==="silogisme") return genSilogisme();
+  if(mode==="converse") return genConverse();
+  if(mode==="causal") return genCausal();
+  return genSilogisme();
+}
+
+// === ENGINE ===
+let mode = "silogisme";
+let step = 0;
+let maxSteps = 4;
+let wrongProfile = [];
+
+const questionText = document.getElementById("questionText");
+const optionsDiv = document.getElementById("options");
+
+let currentQuestion = generateQuestion(mode);
+
+function loadQuestion(){
+  questionText.innerHTML = currentQuestion.q;
+  optionsDiv.innerHTML = "";
+  currentQuestion.options.forEach((opt,i)=>{
+    const div = document.createElement("div");
+    div.className = "option";
+    div.innerText = opt;
+    div.onclick = ()=>answer(i);
+    optionsDiv.appendChild(div);
+  });
+}
+
+function answer(i){
+  if(i !== currentQuestion.correct){
+    wrongProfile.push(currentQuestion.type);
+    adapt(currentQuestion.type);
+    showAnalysis(currentQuestion.explain);
+  } else {
+    next();
+  }
+}
+
+function adapt(type){
+  if(type==="Silogisme") mode="converse";
+  if(type==="Converse Error") mode="causal";
+  if(type==="Affirming the Consequent") mode="silogisme";
+}
+
+function showAnalysis(text){
+  document.getElementById("screen-question").classList.add("hidden");
+  document.getElementById("screen-analysis").classList.remove("hidden");
+  document.getElementById("analysisText").innerHTML = text;
+
+  setTimeout(()=>{
+    document.getElementById("screen-analysis").classList.add("hidden");
+    document.getElementById("screen-question").classList.remove("hidden");
+    next();
+  },2200);
+}
+
+function next(){
+  step++;
+  if(step >= maxSteps){
+    showResult();
+  } else {
+    currentQuestion = generateQuestion(mode);
+    loadQuestion();
+  }
+}
+
+function showResult(){
+  document.getElementById("screen-question").classList.add("hidden");
+  document.getElementById("screen-result").classList.remove("hidden");
+
+  let summary = "Pola berpikirmu:<br><br>";
+  const count = {};
+  wrongProfile.forEach(t=>count[t]=(count[t]||0)+1);
+  for(let k in count){
+    summary += "• "+k+" ("+count[k]+"x)<br>";
+  }
+  if(wrongProfile.length===0){
+    summary += "Tidak ada kesalahan terdeteksi (simulasi ringan).";
+  }
+
+  summary += "<br><br><b>Di versi lengkap:</b><br>";
+  summary += "1. Deteksi jenis salah<br>";
+  summary += "2. Bedah langkah berpikir<br>";
+  summary += "3. Tunjuk titik error<br>";
+  summary += "4. Koreksi logika<br>";
+  summary += "5. Contoh baru<br>";
+  summary += "6. Latihan ulang<br>";
+  summary += "7. Evaluasi ulang<br>";
+
+  document.getElementById("profileText").innerHTML = summary;
+}
+
+loadQuestion();
+</script>
+
+</body>
+</html>
